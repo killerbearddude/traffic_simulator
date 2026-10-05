@@ -1,4 +1,5 @@
 #include "traffic.hpp"
+#include "frame_pacing.hpp"
 
 #include <SDL3/SDL.h>
 #include <imgui.h>
@@ -8,6 +9,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 
 namespace {
 
@@ -37,7 +39,12 @@ void draw_road(SDL_Renderer* renderer, int width, int height, double fraction, b
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    if (argc > 2 || (argc == 2 && std::strcmp(argv[1], "--force-fallback") != 0)) {
+        std::fprintf(stderr, "Usage: traffic_app [--force-fallback]\n");
+        return 1;
+    }
+    const bool force_fallback = argc == 2;
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         std::fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         return 1;
@@ -55,6 +62,31 @@ int main() {
         SDL_Quit();
         return 1;
     }
+    bool vsync_succeeded = false;
+    if (force_fallback) {
+        int actual_vsync = -1;
+        if (!SDL_SetRenderVSync(renderer, SDL_RENDERER_VSYNC_DISABLED) ||
+            !SDL_GetRenderVSync(renderer, &actual_vsync) || actual_vsync != SDL_RENDERER_VSYNC_DISABLED) {
+            std::fprintf(stderr, "Could not verify forced VSync disable: %s\n", SDL_GetError());
+            SDL_DestroyRenderer(renderer);
+            SDL_DestroyWindow(window);
+            SDL_Quit();
+            return 1;
+        }
+        std::fprintf(stderr, "Pacing: timed fallback at nominal 60 FPS (forced; VSync disabled)\n");
+    } else {
+        vsync_succeeded = SDL_SetRenderVSync(renderer, 1);
+        if (vsync_succeeded) {
+            std::fprintf(stderr, "Pacing: VSync requested successfully\n");
+        } else {
+            std::fprintf(stderr, "VSync unavailable: %s\n", SDL_GetError());
+            if (!SDL_SetRenderVSync(renderer, SDL_RENDERER_VSYNC_DISABLED)) {
+                std::fprintf(stderr, "Could not explicitly disable VSync for fallback: %s\n", SDL_GetError());
+            }
+            std::fprintf(stderr, "Pacing: timed fallback at nominal 60 FPS\n");
+        }
+    }
+    const auto pacing_mode = traffic::app::select_pacing(force_fallback, vsync_succeeded);
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::GetIO().IniFilename = nullptr;
@@ -80,6 +112,7 @@ int main() {
     bool open = true;
     std::uint64_t last_ns = SDL_GetTicksNS();
     while (open) {
+        const std::uint64_t frame_start_ns = SDL_GetTicksNS();
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             ImGui_ImplSDL3_ProcessEvent(&event);
@@ -135,6 +168,9 @@ int main() {
         ImGui::Render();
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);
+        traffic::app::finish_frame(pacing_mode, frame_start_ns, SDL_GetTicksNS(), [](std::uint64_t duration_ns) {
+            SDL_DelayNS(duration_ns);
+        });
     }
 
     ImGui_ImplSDLRenderer3_Shutdown();
