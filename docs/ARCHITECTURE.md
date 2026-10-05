@@ -1,0 +1,9 @@
+# TS-001 simulation and timing contract
+
+`traffic_core` has no graphics or platform dependency. A `Fixture` provides lane length and constant speed as finite, positive `double` values in meters and meters per second. The baseline is one center-referenced vehicle at distance 0 on a 100.0 m lane, moving at 10.0 m/s. Every fixed tick advances by `speed * 0.05 s`.
+
+The world completes on the first tick whose position reaches or passes the lane end. It clamps the final distance, removes the vehicle from active state, and retains one completion record. The integer tick is the clock authority; displayed time is `tick * 0.05 s`. The baseline ends at tick 200 / 10.0 s. A 100.25 m lane ends at tick 201 / 10.05 s, deliberately reporting the tick boundary rather than the analytical crossing time. Further steps do nothing until reset.
+
+`Driver` accepts caller-supplied elapsed nanoseconds. It multiplies accumulated active elapsed time by 1, 2, or 4, then executes unchanged 50,000,000 ns simulation steps. Pause ignores new elapsed time while preserving an existing sub-step remainder; resuming does not catch up through the pause. The per-call step budget defers whole steps in its backlog and never drops them. Completion clears the backlog and stops the driver. Reset restores the baseline, paused at 1x, and clears history and counters.
+
+The driver stores the previous completed position for presentation. `display_distance()` interpolates using the fractional accumulated step; if a whole step is outstanding, it displays the latest completed state. Rendering and window size cannot mutate the world. The headless runner calls `World::step()` directly and uses the same movement rule without SDL, wall-clock timing, or sleeping. Reproducibility is specified for the same build and inputs, not bitwise equivalence across platforms.
