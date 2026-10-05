@@ -1,9 +1,11 @@
 #include "traffic.hpp"
+#include "detail/exact_arrival.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
 #include <cstdint>
+#include <iomanip>
 #include <limits>
 #include <stdexcept>
 #include <vector>
@@ -83,6 +85,84 @@ TEST_CASE("constant-speed fixtures complete on the intended tick") {
         REQUIRE(world.completed_count() == 1);
         REQUIRE(world.completion().tick == item.completion_tick);
     }
+}
+
+TEST_CASE("binary64 speeds near arrival boundaries do not complete early") {
+    struct Case { double length; double speed; std::uint64_t completion_tick; };
+    const Case cases[] = {
+        {100.0, 0x1.993b5021f75adp-3, 10010},
+        {100.0, 0x1.993b5021f75aep-3, 10010},
+        {100.0, 0x1.993b5021f75afp-3, 10009},
+        {1000.0, 0x1.8de2dfee2cb8ep+2, 3218},
+        {1000.0, 0x1.8de2dfee2cb8fp+2, 3218},
+        {1000.0, 0x1.8de2dfee2cb90p+2, 3217},
+    };
+    for (const auto& item : cases) {
+        INFO("length=" << item.length << ", speed=" << std::hexfloat << item.speed);
+        World world({item.length, item.speed});
+        for (std::uint64_t i = 1; i < item.completion_tick; ++i) {
+            const double previous_distance = world.distance();
+            world.step();
+            REQUIRE_FALSE(world.complete());
+            REQUIRE(world.active_count() == 1);
+            REQUIRE(world.completed_count() == 0);
+            REQUIRE(world.distance() >= 0.0);
+            REQUIRE(std::isfinite(world.distance()));
+            REQUIRE(world.distance() >= previous_distance);
+            REQUIRE(world.distance() < item.length);
+        }
+        world.step();
+        REQUIRE(world.complete());
+        REQUIRE(world.tick() == item.completion_tick);
+        REQUIRE(world.distance() == item.length);
+        REQUIRE(world.time() == static_cast<double>(item.completion_tick) * World::step_seconds);
+        REQUIRE(world.completion().tick == item.completion_tick);
+        REQUIRE(world.completion().time == world.time());
+        REQUIRE(world.completion().distance == item.length);
+        REQUIRE(world.active_count() == 0);
+        REQUIRE(world.completed_count() == 1);
+        for (int i = 0; i < 5; ++i) world.step();
+        REQUIRE(world.tick() == item.completion_tick);
+        REQUIRE(world.completed_count() == 1);
+        REQUIRE(world.completion().tick == item.completion_tick);
+    }
+}
+
+TEST_CASE("exact arrival arithmetic covers carries, exponent gaps, and large ticks") {
+    constexpr auto square = traffic::detail::multiply(
+        std::numeric_limits<std::uint64_t>::max(), std::numeric_limits<std::uint64_t>::max());
+    STATIC_REQUIRE(square.high == std::numeric_limits<std::uint64_t>::max() - 1);
+    STATIC_REQUIRE(square.low == 1);
+
+    const double smallest = std::numeric_limits<double>::denorm_min();
+    const double largest = std::numeric_limits<double>::max();
+    for (double value : {smallest, largest}) {
+        REQUIRE_FALSE(traffic::detail::has_reached_end(19, value, value));
+        REQUIRE(traffic::detail::has_reached_end(20, value, value));
+        World world({value, value});
+        for (int i = 0; i < 19; ++i) world.step();
+        REQUIRE_FALSE(world.complete());
+        world.step();
+        REQUIRE(world.complete());
+        REQUIRE(world.tick() == 20);
+        REQUIRE(world.distance() == value);
+        REQUIRE(world.completion().distance == value);
+    }
+
+    const std::uint64_t carry_tick = 1ULL << 63;
+    const double carry_lane = 0x1p62;
+    REQUIRE_FALSE(traffic::detail::has_reached_end(carry_tick, std::nextafter(10.0, 0.0), carry_lane));
+    REQUIRE(traffic::detail::has_reached_end(carry_tick, 10.0, carry_lane));
+    REQUIRE(traffic::detail::has_reached_end(carry_tick,
+        std::nextafter(10.0, std::numeric_limits<double>::infinity()), carry_lane));
+
+    const auto last_tick = std::numeric_limits<std::uint64_t>::max();
+    REQUIRE_FALSE(traffic::detail::has_reached_end(0, 20.0, 0x1p64));
+    REQUIRE_FALSE(traffic::detail::has_reached_end(last_tick, 20.0, 0x1p64));
+    REQUIRE(traffic::detail::has_reached_end(last_tick,
+        std::nextafter(20.0, std::numeric_limits<double>::infinity()), 0x1p64));
+    REQUIRE_FALSE(traffic::detail::has_reached_end(last_tick, smallest, 1.0));
+    REQUIRE(traffic::detail::has_reached_end(1, largest, smallest));
 }
 
 TEST_CASE("invalid fixtures are rejected") {
@@ -202,6 +282,25 @@ TEST_CASE("formerly late fixture keeps its trajectory across frame schedules") {
     for (int playback : {1, 2, 4}) {
         for (int frames : {1, 30 / playback, 17}) {
             REQUIRE(run_schedule(frames, playback, frames == 17, {1.0, 2.0}, 10) == expected);
+        }
+    }
+}
+
+TEST_CASE("early-arrival regression keeps tick 10010 across frame schedules") {
+    constexpr traffic::Fixture fixture{100.0, 0x1.993b5021f75aep-3};
+    constexpr std::uint64_t expected_tick = 10010; // Exact rational oracle, not World output.
+    World reference(fixture);
+    std::vector<double> expected_states;
+    for (std::uint64_t i = 0; i < expected_tick; ++i) {
+        reference.step();
+        expected_states.push_back(reference.distance());
+    }
+    REQUIRE(reference.completion().tick == expected_tick);
+    for (int playback : {1, 2, 4}) {
+        for (int frames : {1, 15015 / playback, 30030 / playback, 72072 / playback, 173}) {
+            const auto states = run_schedule(frames, playback, frames == 173, fixture, expected_tick);
+            REQUIRE(states.size() == expected_tick);
+            REQUIRE(states == expected_states);
         }
     }
 }

@@ -1,4 +1,5 @@
 #include "traffic.hpp"
+#include "detail/exact_arrival.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -30,18 +31,18 @@ void World::reset(Fixture fixture) {
 void World::step() {
     if (complete_) return;
     ++tick_;
-    // This constant-speed milestone uses the exact fixed-step ratio 1/20 s.
-    // Deriving travel from the integer tick avoids accumulated addition error.
-    const long double traveled = static_cast<long double>(tick_) * fixture_.speed / 20.0L;
-    if (traveled >= static_cast<long double>(fixture_.lane_length)) {
+    if (detail::has_reached_end(tick_, fixture_.speed, fixture_.lane_length)) {
         distance_ = fixture_.lane_length;
         complete_ = true;
         completion_ = {tick_, time(), distance_};
     } else {
-        distance_ = static_cast<double>(traveled);
-        if (distance_ >= fixture_.lane_length) {
-            distance_ = std::nextafter(fixture_.lane_length, 0.0);
+        // Approximate position is presentation state; it cannot decide arrival.
+        const long double traveled = (static_cast<long double>(tick_) / 20.0L) * fixture_.speed;
+        double stored = static_cast<double>(traveled);
+        if (!std::isfinite(stored) || stored >= fixture_.lane_length) {
+            stored = std::nextafter(fixture_.lane_length, 0.0);
         }
+        distance_ = std::max(distance_, stored);
     }
 }
 
