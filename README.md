@@ -2,15 +2,21 @@
 
 TS-001 is a C++20 foundation for one vehicle moving at constant speed along one straight lane. The native SDL3 application and the headless executable use the same dependency-free simulation library.
 
+## Documentation
+
+Start with [Project state](docs/PROJECT_STATE.md) for the current boundary, [Architecture](docs/ARCHITECTURE.md) for the simulation contract, and [Testing](docs/TESTING.md) for verification requirements and command status. Codex work follows [AGENTS.md](AGENTS.md) and the reusable [handoff and completion-report templates](docs/CODEX_WORKFLOW.md).
+
 ## Prerequisites
 
 - CMake 3.25 or newer, Ninja, Git, and a C++20 GCC or Clang toolchain.
 - Network access on first configuration to fetch the exact dependency commits listed in `cmake/Dependencies.cmake`. Later builds use the downloaded source in `build/`.
 - For the native app, a working SDL3-supported display and the platform development libraries required by SDL3. The headless preset needs no display or SDL3 development libraries.
 
-The validated environment was Ubuntu 24.04, GCC 13.3.0, CMake 3.28.3, and Ninja 1.11.1. Dependency versions are SDL3 3.2.22, Dear ImGui 1.91.9b, and Catch2 3.8.1, pinned to full commits in `cmake/Dependencies.cmake`. Third-party notices are in `third_party/NOTICES.md`.
+The previously recorded validation environment was Ubuntu 24.04, GCC 13.3.0, CMake 3.28.3, and Ninja 1.11.1. Dependency versions are SDL3 3.2.22, Dear ImGui 1.91.9b, and Catch2 3.8.1, pinned to full commits in `cmake/Dependencies.cmake`. Third-party notices are in `third_party/NOTICES.md`.
 
 ## Build and run
+
+These quickstart commands are also maintained in [Testing](docs/TESTING.md), which distinguishes source inspection from executed validation.
 
 ```sh
 cmake --preset dev
