@@ -16,11 +16,11 @@ These are implementation observations supported by source and existing regressio
 
 ## Recently completed and acceptance status
 
-The previous Codex report marked TS-001-R2 complete. Its exact-arrival implementation and regression fixtures are present in the inspected `main` baseline. The subsequent design review accepted R2 without requesting R3. This bootstrap does not create new owner approval or reconstruct merge history from the branch listing.
+The previous Codex report marked TS-001-R2 complete. Its exact-arrival implementation and regression fixtures are present in the inspected `main` baseline. The subsequent design review accepted R2 without requesting R3. The owner accepted TS-DOC-001 separately; that acceptance does not change the R2 contract or reconstruct merge history from the branch listing.
 
 ## Active implementation
 
-TS-DOC-001 documentation bootstrap is applied locally and awaiting owner review. No new gameplay implementation is authorized by this document.
+The owner accepted TS-DOC-001 after reviewing commit `c0d4cfae96b9ae9eea068885e52b1e3974f2723b`. Integration into `main` and native visual verification are separate, unconfirmed outcomes at this closeout. No new gameplay implementation is authorized by this document.
 
 ## Accepted decisions affecting current work
 
@@ -42,7 +42,7 @@ The previously discussed intersection design has not yet been reconciled into a 
 
 ## Next likely boundary — not authorization
 
-First integrate and review the documentation-only bootstrap. Then design a separate M2 vehicle-following-and-stopping handoff for a reliable single-lane queue before adding intersection behavior. The current constant-speed arrival rule must not silently become an acceleration or multi-vehicle completion rule.
+After integrating the accepted documentation bootstrap, a separate M2 vehicle-following-and-stopping handoff could define a reliable single-lane queue before intersection behavior. M2 remains unauthorized. The current constant-speed arrival rule must not silently become an acceleration or multi-vehicle completion rule.
 
 ## Relevant documents
 
