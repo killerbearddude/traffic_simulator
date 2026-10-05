@@ -30,10 +30,18 @@ void World::reset(Fixture fixture) {
 void World::step() {
     if (complete_) return;
     ++tick_;
-    distance_ = std::min(fixture_.lane_length, distance_ + fixture_.speed * step_seconds);
-    if (distance_ >= fixture_.lane_length) {
+    // This constant-speed milestone uses the exact fixed-step ratio 1/20 s.
+    // Deriving travel from the integer tick avoids accumulated addition error.
+    const long double traveled = static_cast<long double>(tick_) * fixture_.speed / 20.0L;
+    if (traveled >= static_cast<long double>(fixture_.lane_length)) {
+        distance_ = fixture_.lane_length;
         complete_ = true;
         completion_ = {tick_, time(), distance_};
+    } else {
+        distance_ = static_cast<double>(traveled);
+        if (distance_ >= fixture_.lane_length) {
+            distance_ = std::nextafter(fixture_.lane_length, 0.0);
+        }
     }
 }
 

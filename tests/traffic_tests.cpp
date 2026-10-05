@@ -49,6 +49,42 @@ TEST_CASE("off-grid completion records first completing tick") {
     REQUIRE(world.completion().distance == 100.25);
 }
 
+TEST_CASE("constant-speed fixtures complete on the intended tick") {
+    struct Case { double length; double speed; std::uint64_t completion_tick; };
+    const Case cases[] = {
+        {100.0, 10.0, 200}, {100.25, 10.0, 201},
+        {1.0, 2.0, 10}, {100.0, 2.0, 1000}, {100.0, 1.0, 2000},
+        {1.0 - 1e-9, 2.0, 10}, {1.0 + 1e-9, 2.0, 11},
+        {std::nextafter(1.0, 0.0), 2.0, 10},
+        {std::nextafter(1.0, std::numeric_limits<double>::infinity()), 2.0, 11},
+    };
+    for (const auto& item : cases) {
+        INFO("length=" << item.length << ", speed=" << item.speed);
+        World world({item.length, item.speed});
+        for (std::uint64_t i = 1; i < item.completion_tick; ++i) {
+            world.step();
+            REQUIRE_FALSE(world.complete());
+            REQUIRE(world.active_count() == 1);
+            REQUIRE(world.completed_count() == 0);
+            REQUIRE(world.distance() < item.length);
+        }
+        world.step();
+        REQUIRE(world.complete());
+        REQUIRE(world.tick() == item.completion_tick);
+        REQUIRE(world.time() == static_cast<double>(item.completion_tick) * World::step_seconds);
+        REQUIRE(world.distance() == item.length);
+        REQUIRE(world.completion().tick == item.completion_tick);
+        REQUIRE(world.completion().time == world.time());
+        REQUIRE(world.completion().distance == item.length);
+        REQUIRE(world.active_count() == 0);
+        REQUIRE(world.completed_count() == 1);
+        for (int i = 0; i < 5; ++i) world.step();
+        REQUIRE(world.tick() == item.completion_tick);
+        REQUIRE(world.completed_count() == 1);
+        REQUIRE(world.completion().tick == item.completion_tick);
+    }
+}
+
 TEST_CASE("invalid fixtures are rejected") {
     for (double bad : {0.0, -1.0, std::numeric_limits<double>::infinity(),
                        -std::numeric_limits<double>::infinity(), std::numeric_limits<double>::quiet_NaN()}) {
@@ -127,12 +163,13 @@ TEST_CASE("interpolation is presentation only") {
 }
 
 namespace {
-std::vector<double> run_schedule(int frames, int playback, bool irregular = false) {
-    Driver driver;
+std::vector<double> run_schedule(int frames, int playback, bool irregular = false,
+                                 traffic::Fixture fixture = {}, std::uint64_t completion_tick = 200) {
+    Driver driver(fixture);
     driver.set_playback(playback);
     driver.set_running(true);
     std::vector<double> distances;
-    const std::int64_t total_ns = 10'000'000'000LL / playback;
+    const std::int64_t total_ns = static_cast<std::int64_t>(completion_tick) * Driver::step_ns / playback;
     std::int64_t previous_boundary = 0;
     for (int frame = 1; frame <= frames; ++frame) {
         const auto boundary = irregular
@@ -148,11 +185,26 @@ std::vector<double> run_schedule(int frames, int playback, bool irregular = fals
         }
     }
     REQUIRE(driver.world().complete());
-    REQUIRE(driver.world().completion().tick == 200);
-    REQUIRE(driver.world().completion().time == 10.0);
+    REQUIRE(driver.world().completion().tick == completion_tick);
+    REQUIRE(driver.world().completion().time == static_cast<double>(completion_tick) * World::step_seconds);
     return distances;
 }
 } // namespace
+
+TEST_CASE("formerly late fixture keeps its trajectory across frame schedules") {
+    World reference({1.0, 2.0});
+    std::vector<double> expected;
+    while (!reference.complete()) {
+        reference.step();
+        expected.push_back(reference.distance());
+    }
+    REQUIRE(reference.completion().tick == 10);
+    for (int playback : {1, 2, 4}) {
+        for (int frames : {1, 30 / playback, 17}) {
+            REQUIRE(run_schedule(frames, playback, frames == 17, {1.0, 2.0}, 10) == expected);
+        }
+    }
+}
 
 TEST_CASE("regular and irregular frame schedules preserve trajectory") {
     for (int playback : {1, 2, 4}) {
