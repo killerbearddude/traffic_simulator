@@ -1,4 +1,4 @@
-#include "traffic.hpp"
+#include "m2.hpp"
 #include "frame_pacing.hpp"
 
 #include <SDL3/SDL.h>
@@ -7,34 +7,48 @@
 #include <imgui_impl_sdlrenderer3.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <string>
 
 namespace {
 
-void draw_road(SDL_Renderer* renderer, int width, int height, double fraction, bool vehicle_active) {
-    const float w = static_cast<float>(width);
-    const float h = static_cast<float>(height);
-    const float top = std::min(335.0f, h * 0.57f);
-    const float road_y = top + (h - top) * 0.5f;
-    const float road_h = std::max(32.0f, std::min(90.0f, (h - top) * 0.48f));
-    SDL_FRect road{0.0f, road_y - road_h / 2.0f, w, road_h};
-    SDL_SetRenderDrawColor(renderer, 43, 48, 55, 255);
-    SDL_RenderFillRect(renderer, &road);
-    SDL_SetRenderDrawColor(renderer, 230, 198, 92, 255);
-    for (float x = 10.0f; x < w; x += 42.0f) {
-        SDL_FRect dash{x, road_y - 1.5f, std::min(23.0f, w - x), 3.0f};
-        SDL_RenderFillRect(renderer, &dash);
+void draw_view(const char* title, float top, float height, int window_width,
+               double first, double last, const traffic::m2::Driver& driver) {
+    ImGui::SetNextWindowPos(ImVec2(10,top),ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(std::max(180,window_width-20),std::max(95.0f,height)),ImGuiCond_Always);
+    ImGui::Begin(title,nullptr,ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoCollapse);
+    const ImVec2 origin=ImGui::GetCursorScreenPos();
+    const ImVec2 available=ImGui::GetContentRegionAvail();
+    auto* draw=ImGui::GetWindowDrawList();
+    const float left=origin.x+18, right=origin.x+std::max(30.0f,available.x-18);
+    const float scale=(right-left)/static_cast<float>(last-first);
+    const float cy=origin.y+available.y*.56f;
+    const auto px=[&](double x){return left+static_cast<float>(x-first)*scale;};
+    draw->PushClipRect(origin,ImVec2(origin.x+available.x,origin.y+available.y),true);
+    draw->AddRectFilled(ImVec2(left,cy-2*scale),ImVec2(right,cy+2*scale),IM_COL32(45,51,59,255));
+    for (double marker=std::ceil(first/50)*50;marker<=last;marker+=50)
+        draw->AddLine(ImVec2(px(marker),cy+3*scale),ImVec2(px(marker),cy+3*scale+5),IM_COL32(140,150,160,255));
+    const float line=px(driver.world().config().stop_line);
+    if (line>=left && line<=right) {
+        draw->AddLine(ImVec2(line,origin.y+8),ImVec2(line,origin.y+available.y-6),IM_COL32(245,188,70,255),2);
+        draw->AddText(ImVec2(std::min(line+4,right-70),origin.y+5),IM_COL32(245,188,70,255),"400 m stop line");
     }
-    if (vehicle_active) {
-        const float left = 30.0f;
-        const float right = std::max(left, w - 30.0f);
-        const float center_x = left + static_cast<float>(fraction) * (right - left);
-        SDL_FRect car{center_x - 18.0f, road_y - 12.0f, 36.0f, 24.0f};
-        SDL_SetRenderDrawColor(renderer, 70, 170, 245, 255);
-        SDL_RenderFillRect(renderer, &car);
+    const auto& config=driver.world().config();
+    for (const auto& car:driver.world().active()) {
+        const float x=px(driver.display_x(car.id));
+        if (x<left-config.length*scale || x>right+config.length*scale) continue;
+        draw->AddRectFilled(ImVec2(x-static_cast<float>(config.length/2)*scale,cy-static_cast<float>(config.width/2)*scale),
+            ImVec2(x+static_cast<float>(config.length/2)*scale,cy+static_cast<float>(config.width/2)*scale),
+            car.qualified ? IM_COL32(90,215,130,255) : IM_COL32(70,170,245,255));
+        draw->AddText(ImVec2(x-4,cy+std::max(5.0f,static_cast<float>(config.width/2)*scale+2)),
+                      IM_COL32(240,240,240,255),std::to_string(car.id).c_str());
     }
+    draw->PopClipRect();
+    ImGui::Dummy(available);
+    ImGui::End();
 }
 
 } // namespace
@@ -49,9 +63,16 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         return 1;
     }
-    SDL_Window* window = SDL_CreateWindow("Traffic Simulator TS-001", 960, 640, SDL_WINDOW_RESIZABLE);
+    SDL_Window* window = SDL_CreateWindow("Traffic Simulator M2", 1100, 720, SDL_WINDOW_RESIZABLE);
     if (!window) {
         std::fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
+        SDL_Quit();
+        return 1;
+    }
+    // The fixed controls and two views need this much space to remain inside the window.
+    if (!SDL_SetWindowMinimumSize(window, 960, 640)) {
+        std::fprintf(stderr, "SDL_SetWindowMinimumSize failed: %s\n", SDL_GetError());
+        SDL_DestroyWindow(window);
         SDL_Quit();
         return 1;
     }
@@ -108,7 +129,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    traffic::Driver driver;
+    traffic::m2::Driver driver;
     bool open = true;
     std::uint64_t last_ns = SDL_GetTicksNS();
     while (open) {
@@ -132,14 +153,16 @@ int main(int argc, char** argv) {
         int width = 0, height = 0;
         SDL_GetWindowSize(window, &width, &height);
         ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(std::max(120.0f, std::min(355.0f, static_cast<float>(width) - 20.0f)),
-                                         std::max(120.0f, std::min(315.0f, static_cast<float>(height) * 0.52f))), ImGuiCond_Always);
-        ImGui::Begin("Single lane", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
-        if (ImGui::Button(driver.running() ? "Pause" : "Run", ImVec2(76, 0)) && !driver.world().complete()) {
+        const float controls_h=std::min(265.0f,std::max(165.0f,static_cast<float>(height)*.38f));
+        ImGui::SetNextWindowSize(ImVec2(std::max(180,width-20),controls_h), ImGuiCond_Always);
+        ImGui::Begin("M2 queue controls", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+        if (ImGui::Button(driver.running() ? "Pause" : "Run", ImVec2(76, 0)) && !driver.world().complete() && !driver.world().invalid()) {
             driver.set_running(!driver.running());
         }
         ImGui::SameLine();
         if (ImGui::Button("Reset", ImVec2(76, 0))) driver.reset();
+        ImGui::SameLine();
+        if (ImGui::Button("Release queue") && !driver.world().released()) driver.request_release();
         ImGui::TextUnformatted("Playback");
         for (int speed : {1, 2, 4}) {
             if (speed != 1) ImGui::SameLine();
@@ -149,22 +172,31 @@ int main(int argc, char** argv) {
         }
         const auto& world = driver.world();
         ImGui::Separator();
-        ImGui::Text("State: %s", world.complete() ? "Complete" : driver.running() ? "Running" : "Paused");
+        ImGui::Text("State: %s", world.invalid() ? "Invalid" : world.complete() ? "Complete" : driver.running() ? "Running" : "Paused");
         ImGui::Text("Time: %.2f s   Tick: %llu", world.time(), static_cast<unsigned long long>(world.tick()));
-        ImGui::Text("Distance: %.2f m / %.2f m", world.distance(), world.fixture().lane_length);
-        ImGui::Text("Speed: %.2f m/s", world.fixture().speed);
-        ImGui::Text("Active: %d   Completed: %d", world.active_count(), world.completed_count());
+        ImGui::Text("Queue: %s   Active: %zu   Completed: %d", world.released() ? "Released" :
+                    world.release_pending() ? "Release pending" : "Held",
+                    world.active().size(), world.completed_count());
         ImGui::Text("Playback: %dx", driver.playback());
-        if (world.complete()) {
-            const auto record = world.completion();
-            ImGui::Text("Finished: tick %llu, %.2f s, %.2f m",
-                        static_cast<unsigned long long>(record.tick), record.time, record.distance);
+        if (world.invalid()) ImGui::TextWrapped("Diagnostic: %s",world.diagnostic().c_str());
+        for (const auto& car:world.active())
+            ImGui::Text("ID %d  x %.2f m  v %.2f m/s  dwell %d/20  %s",car.id,car.x,car.v,car.dwell,
+                        car.qualified ? "qualified" : "waiting");
+        for (const auto& record:world.records()) {
+            if (!record.qualification_tick && !record.crossing_tick && !record.completion_tick) continue;
+            ImGui::Text("ID %d events: stop %s  line %s  clear %s",record.id,
+                record.qualification_tick ? std::to_string(*record.qualification_tick).c_str() : "-",
+                record.crossing_tick ? std::to_string(*record.crossing_tick).c_str() : "-",
+                record.completion_tick ? std::to_string(*record.completion_tick).c_str() : "-");
         }
         ImGui::End();
 
+        const float remaining=std::max(200.0f,static_cast<float>(height)-controls_h-35.0f);
+        draw_view("Overview 0-600 m",controls_h+15,remaining*.5f,width,0,610,driver);
+        draw_view("Stop-line detail 340-440 m",controls_h+20+remaining*.5f,remaining*.5f-5,width,340,440,driver);
+
         SDL_SetRenderDrawColor(renderer, 23, 29, 35, 255);
         SDL_RenderClear(renderer);
-        draw_road(renderer, width, height, driver.display_distance() / world.fixture().lane_length, !world.complete());
         ImGui::Render();
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);

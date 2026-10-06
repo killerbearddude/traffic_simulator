@@ -36,3 +36,14 @@ The driver stores the previous completed position for presentation. `display_dis
 TS-001 has no save/load or scenario-file contract. The current app also disables Dear ImGui ini-file persistence. Do not add persistence, a road editor, or a generalized scenario format as incidental infrastructure.
 
 The constant-speed arrival predicate above is specific to TS-001. A later acceleration or multi-vehicle task must explicitly define its own movement, vehicle-reference, spacing, and completion rules and identify any baseline it replaces. The bootstrap does not choose those rules. Keep the present contract together until a substantive second system justifies a separate document.
+
+## M2 following and stopping
+
+M2 is the native and default headless model. Its accepted physical and event contract is
+[Following and stopping](systems/FOLLOWING_AND_STOPPING.md). It uses six center-referenced
+vehicles with physical extents, synchronous IDM decisions, piecewise-ballistic fixed-step
+motion, continuous-interval safety checks, individual stop qualification, and rear-clearance
+completion. `src/core/m2.hpp` and `m2.cpp` own this state and behavior; the M2 driver
+owns elapsed-time backlog and presentation history. Native and headless frontends use the
+same M2 world. The TS-001 `World`, `Driver`, exact-arrival classifier, and contract above
+remain separate and unchanged; headless selects TS-001 explicitly with `--scenario ts-001`.
