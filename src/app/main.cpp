@@ -69,6 +69,13 @@ int main(int argc, char** argv) {
         SDL_Quit();
         return 1;
     }
+    // The fixed controls and two views need this much space to remain inside the window.
+    if (!SDL_SetWindowMinimumSize(window, 960, 640)) {
+        std::fprintf(stderr, "SDL_SetWindowMinimumSize failed: %s\n", SDL_GetError());
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
     SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
     if (!renderer) {
         std::fprintf(stderr, "SDL_CreateRenderer failed: %s\n", SDL_GetError());

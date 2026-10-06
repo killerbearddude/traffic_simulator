@@ -85,7 +85,9 @@ No dedicated formatter, linter, or static-analysis target/configuration was foun
 
 `tests/pacing_tests.cpp` tests the platform-independent helper in `src/app/frame_pacing.hpp`: VSync/fallback selection, waiting only for the remaining frame budget, and avoiding an extra fallback wait in VSync mode. These tests do not use an SDL display.
 
-CMake builds one Catch2 test executable from both files and registers its test cases with CTest. It separately registers the `traffic_headless` executable as `headless_baseline`.
+`tests/m2_tests.cpp` covers IDM, ballistic motion, swept safety, stop qualification, event ordering, fixture checkpoints, and tick-level playback repeatability. These tests do not use an SDL display.
+
+CMake builds one Catch2 test executable from these three files and discovers its test cases with CTest. It also registers `traffic_headless` as `headless_baseline` with `--scenario ts-001` and as `headless_m2` with `--scenario m2`. The `m2_cli_unknown` and `m2_cli_malformed` cases require invalid scenario arguments to fail.
 
 ## Validation expectations
 
