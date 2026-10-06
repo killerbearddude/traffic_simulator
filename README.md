@@ -1,22 +1,25 @@
 # Traffic Simulator
 
-TS-001 is a C++20 foundation for one vehicle moving at constant speed along one straight lane. The native SDL3 application and the headless executable use the same dependency-free simulation library.
+Traffic Simulator is a C++20 single-lane demonstration. M2 is the native and headless
+default: six vehicles use IDM to approach a persistent stop line, each completes its
+own stop, and a one-way Release queue command lets them depart. The native app has
+Run/Pause, Reset, 1x/2x/4x playback, and fixed overview (0–600 m) and enlarged
+stop-line (340–440 m) views. The original TS-001 constant-speed model remains available
+in the headless runner with `--scenario ts-001`.
 
 ## Documentation
 
-Start with [Project state](docs/PROJECT_STATE.md) for the current boundary, [Architecture](docs/ARCHITECTURE.md) for the simulation contract, and [Testing](docs/TESTING.md) for verification requirements and command status. Codex work follows [AGENTS.md](AGENTS.md) and the reusable [handoff and completion-report templates](docs/CODEX_WORKFLOW.md).
-
-## Prerequisites
-
-- CMake 3.25 or newer, Ninja, Git, and a C++20 GCC or Clang toolchain.
-- Network access on first configuration to fetch the exact dependency commits listed in `cmake/Dependencies.cmake`. Later builds use the downloaded source in `build/`.
-- For the native app, a working SDL3-supported display and the platform development libraries required by SDL3. The headless preset needs no display or SDL3 development libraries.
-
-The previously recorded validation environment was Ubuntu 24.04, GCC 13.3.0, CMake 3.28.3, and Ninja 1.11.1. Dependency versions are SDL3 3.2.22, Dear ImGui 1.91.9b, and Catch2 3.8.1, pinned to full commits in `cmake/Dependencies.cmake`. Third-party notices are in `third_party/NOTICES.md`.
+[Project state](docs/PROJECT_STATE.md) records implementation and review status.
+[Architecture](docs/ARCHITECTURE.md) preserves the TS-001 timing contract and links
+[M2 following and stopping](docs/systems/FOLLOWING_AND_STOPPING.md).
+[Testing](docs/TESTING.md) gives the verification gate.
+[AGENTS.md](AGENTS.md) and [Codex workflow](docs/CODEX_WORKFLOW.md) define the work process.
 
 ## Build and run
 
-These quickstart commands are also maintained in [Testing](docs/TESTING.md), which distinguishes source inspection from executed validation.
+Requires CMake 3.25+, Ninja, Git, and a C++20 compiler. First configuration fetches
+pinned dependencies from `cmake/Dependencies.cmake`. A supported display and SDL3 platform
+development libraries are needed for the native app.
 
 ```sh
 cmake --preset dev
@@ -25,19 +28,25 @@ ctest --preset dev --output-on-failure
 ./build/dev/traffic_app
 ./build/dev/traffic_app --force-fallback
 ./build/dev/traffic_headless
+./build/dev/traffic_headless --scenario m2
+./build/dev/traffic_headless --scenario ts-001
 
 cmake --preset headless
 cmake --build --preset headless
 ctest --preset headless --output-on-failure
 ./build/headless/traffic_headless
+./build/headless/traffic_headless --scenario m2
+./build/headless/traffic_headless --scenario ts-001
 ```
 
-`TRAFFIC_BUILD_APP` defaults to `ON`; set it to `OFF` to avoid SDL3 and ImGui discovery, fetching, building, and linking. `BUILD_TESTING=OFF` avoids Catch2. Both presets keep all build output under ignored `build/` directories.
-
-The app starts paused. Run/Pause, Reset, and 1x/2x/4x control playback. Reset returns to the baseline at tick zero, paused at 1x. The baseline completes at tick 200 and 10.00 s, then stops. The headless runner prints the fixture and completion record and exits nonzero if the bounded run fails.
-
-The app requests SDL renderer VSync and reports the selected pacing mode once at startup. If the request fails, it uses a nominal 60 FPS timed fallback. `--force-fallback` explicitly disables VSync and selects the timed path for validation. Fallback waits only for the frame budget remaining after input, simulation, rendering, and presentation; it does not change simulation steps or replace measured elapsed time. Actual frame intervals depend on the display and OS scheduler.
+The headless M2 run releases at tick 1200 after checking the held queue and allows
+completion through tick 3600. Native release is manual and has no time limit. The app
+starts paused and held at 1x. Reset restores the original fixture and clears records.
+The renderer requests VSync and reports whether it uses VSync or timed fallback;
+`--force-fallback` disables VSync for validation.
 
 ## Limits
 
-This milestone has one lane and one vehicle. It does not include an intersection, other traffic, acceleration, routing, or editable scenarios. Native controls and rendering require a usable display for visual validation. The exact simulation contract and timing behavior are in `docs/ARCHITECTURE.md`.
+M2 has one fixed lane and six fixed vehicles. It has no intersection, routing, spawning,
+lane changes, editable scenario files, persistence, or analytics export. The model is a
+development demonstration rather than calibrated traffic-engineering guidance.

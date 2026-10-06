@@ -92,3 +92,49 @@ CMake builds one Catch2 test executable from both files and registers its test c
 Start with the smallest affected check, then satisfy the `AGENTS.md` gate: both presets, both CTest runs, and a headless execution. Preserve a reproducer for a numerical or timing regression. For determinism checks, compare relevant tick-level states under the same build and inputs, not rendered frames or just final averages.
 
 Only a currently authorized handoff may explicitly narrow a gate. If a required check cannot run, record NOT CHECKED with its reason and leave its acceptance criterion unmet; do not turn it into PASS. A documentation-only task can verify references and patch integrity, but those checks do not validate the application.
+
+## TS-002 M2 validation
+
+M2 is the default for `traffic_headless`; `--scenario m2` selects it explicitly and
+`--scenario ts-001` runs the original constant-speed fixture. `headless_baseline` now
+selects TS-001 explicitly; `headless_m2` runs the default M2 acceptance path. The
+`m2_` Catch2 cases cover the M2 model, trajectories, fixture, events, and elapsed-time
+playback. The TS-001 cases remain registered. The native app runs M2 only.
+
+For TS-002, inspect discovery and run the focused `^m2_` selection first, then both
+headless cases and the full `headless` and `dev` preset CTest suites. Run all three
+headless invocations per preset: default, `--scenario m2`, and `--scenario ts-001`.
+Run an isolated AddressSanitizer/UndefinedBehaviorSanitizer headless suite where supported.
+The native app and `--force-fallback` require a real supported display for visual and
+interaction acceptance; compilation or offscreen launching does not satisfy that check.
+
+TS-002 command results and native verification status are recorded in the completion
+report for the review branch. Earlier TS-DOC-001 results above are historical and do
+not establish M2 verification.
+
+### TS-002 execution status (2026-10-05, review branch)
+
+On `codex/ts-002-following-and-stopping`, Ubuntu 24.04 / GCC 13.3.0,
+`cmake --preset headless`, `cmake --build --preset headless`, and
+`ctest --preset headless -N` succeeded; discovery listed 36 tests.
+`ctest --preset headless --output-on-failure -R '^m2_'` passed 16/16,
+`-R '^(headless_m2|headless_baseline)$'` passed 2/2, and the full
+`ctest --preset headless --output-on-failure` passed 36/36.
+The default, explicit M2, and explicit TS-001 headless executables passed.
+`cmake --preset dev`, `cmake --build --preset dev`, and the full
+`ctest --preset dev --output-on-failure` passed 36/36; the same three
+headless invocations from `build/dev` passed.
+
+An isolated `build/asan-headless` configuration used
+`-fsanitize=address,undefined -fno-omit-frame-pointer` and the existing
+cached Catch2 source. Initial Catch2 test discovery failed because
+LeakSanitizer could not run in this environment. With
+`ASAN_OPTIONS=detect_leaks=0`, the build and full CTest suite passed 36/36.
+Leak detection was therefore not checked. `git diff --check` and a scan for
+trailing whitespace in new files passed.
+
+Both `./build/dev/traffic_app` and `./build/dev/traffic_app --force-fallback`
+failed at SDL initialization with `No available video device`; `DISPLAY=:0`
+was set but `xdpyinfo -display :0` could not open it. Native visual/interaction
+behavior, actual pacing selection, and forced VSync disable remain NOT CHECKED.
+This review delivery is PARTIAL until those checks can run on a real display.
