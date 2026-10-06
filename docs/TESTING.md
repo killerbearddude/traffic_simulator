@@ -116,20 +116,20 @@ not establish M2 verification.
 
 On `codex/ts-002-following-and-stopping`, Ubuntu 24.04 / GCC 13.3.0,
 `cmake --preset headless`, `cmake --build --preset headless`, and
-`ctest --preset headless -N` succeeded; discovery listed 36 tests.
-`ctest --preset headless --output-on-failure -R '^m2_'` passed 16/16,
+`ctest --preset headless -N` succeeded; discovery listed 39 tests.
+`ctest --preset headless --output-on-failure -R '^m2_'` passed 19/19,
 `-R '^(headless_m2|headless_baseline)$'` passed 2/2, and the full
-`ctest --preset headless --output-on-failure` passed 36/36.
+`ctest --preset headless --output-on-failure` passed 39/39.
 The default, explicit M2, and explicit TS-001 headless executables passed.
 `cmake --preset dev`, `cmake --build --preset dev`, and the full
-`ctest --preset dev --output-on-failure` passed 36/36; the same three
+`ctest --preset dev --output-on-failure` passed 39/39; the same three
 headless invocations from `build/dev` passed.
 
 An isolated `build/asan-headless` configuration used
 `-fsanitize=address,undefined -fno-omit-frame-pointer` and the existing
 cached Catch2 source. Initial Catch2 test discovery failed because
 LeakSanitizer could not run in this environment. With
-`ASAN_OPTIONS=detect_leaks=0`, the build and full CTest suite passed 36/36.
+`ASAN_OPTIONS=detect_leaks=0`, the build and full CTest suite passed 39/39.
 Leak detection was therefore not checked. `git diff --check` and a scan for
 trailing whitespace in new files passed.
 

@@ -20,6 +20,7 @@ TEST_CASE("m2_IDM equation and invalid inputs") {
     const double desired=2+std::max(0.0,v*1.5+v*(v-leader)/(2*std::sqrt(3.0)));
     REQUIRE(idm(c,v,gap,leader)==Approx(1.5*(1-std::pow(v/c.desired_speed,4)-std::pow(desired/gap,2))));
     REQUIRE(idm(c,15,15,0)<idm(c,15));
+    REQUIRE(idm(c,1,10,50)==Approx(1.5*(1-std::pow(1/c.desired_speed,4)-std::pow(2.0/10,2))));
     REQUIRE_THROWS(idm(c,1,0.0));
     REQUIRE_THROWS(idm(c,std::numeric_limits<double>::infinity()));
     c.comfortable_braking=0;
@@ -117,6 +118,16 @@ TEST_CASE("m2_configuration rejects overlap and duplicate IDs") {
     REQUIRE_THROWS(World(c,{{1,240,0},{2,239,0}}));
     c.desired_speed=std::numeric_limits<double>::quiet_NaN();
     REQUIRE_THROWS(World(c,{{1,240,0}}));
+}
+TEST_CASE("m2_lower acceleration wins between real leader and stop constraint") {
+    World world;
+    const auto& c=world.config();
+    const auto first=world.active()[0], second=world.active()[1];
+    const double real=idm(c,second.v,first.x-second.x-c.length,first.v);
+    const double virtual_a=idm(c,second.v,c.virtual_obstacle-(second.x+c.length/2),0);
+    REQUIRE(real<virtual_a);
+    world.step();
+    REQUIRE(world.active()[1].v==Approx(second.v+std::min(real,virtual_a)*.05));
 }
 
 TEST_CASE("m2_dwell requires 20 full intervals and next interval permission") {
@@ -237,4 +248,36 @@ TEST_CASE("m2_stop boundaries include edges and exclude partial intervals") {
     REQUIRE_FALSE(full_stop_interval(ballistic(397.25,.09,.5),4.5,true));
     REQUIRE_FALSE(full_stop_interval(ballistic(396.99,.8,-20),4.5,true)); // enters region while stopping
     REQUIRE_FALSE(full_stop_interval(ballistic(397.25,0,0),4.5,false)); // queued follower
+}
+TEST_CASE("m2_rear clearance keeps a downstream leader active") {
+    World world;
+    while (world.tick()<1200) world.step();
+    world.request_release();
+    bool saw_center_past_boundary=false;
+    while (!world.invalid() && !world.records()[0].completion_tick && world.tick()<3600) {
+        world.step();
+        if (!world.active().empty() && world.active()[0].id==1 && world.active()[0].x>=600) {
+            saw_center_past_boundary=true;
+            REQUIRE(world.active()[0].x-world.config().length/2<600);
+            REQUIRE_FALSE(world.records()[0].completion_tick);
+            REQUIRE(world.active()[1].id==2);
+        }
+    }
+    REQUIRE(saw_center_past_boundary);
+    REQUIRE_FALSE(world.invalid()); REQUIRE(world.records()[0].completion_tick);
+    REQUIRE(world.records()[0].completion_x-world.config().length/2>=600);
+    REQUIRE(world.active()[0].id==2);
+}
+TEST_CASE("m2_interrupted dwell resets before qualification") {
+    World world(Config{},{{1,397.0,0}});
+    bool saw_credit=false, saw_reset=false;
+    for (int i=0;i<30 && !world.invalid();++i) {
+        const int before=world.active()[0].dwell;
+        world.step();
+        const int after=world.active()[0].dwell;
+        saw_credit |= after>0;
+        saw_reset |= before>0 && after==0;
+        REQUIRE_FALSE(world.active()[0].qualified);
+    }
+    REQUIRE_FALSE(world.invalid()); REQUIRE(saw_credit); REQUIRE(saw_reset);
 }

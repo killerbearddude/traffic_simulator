@@ -24,8 +24,8 @@ The accepted M2 behavior is in [Following and stopping](systems/FOLLOWING_AND_ST
 [Architecture](ARCHITECTURE.md) preserves TS-001 and the shared boundaries.
 [Testing](TESTING.md) describes the validation gate. The TS-002 completion report records
 actual test, sanitizer, and native verification results; source implementation alone is
-not owner acceptance or proof of visual usability. Both preset suites passed 36/36,
-and the isolated AddressSanitizer/UndefinedBehaviorSanitizer suite passed 36/36
+not owner acceptance or proof of visual usability. Both preset suites passed 39/39,
+and the isolated AddressSanitizer/UndefinedBehaviorSanitizer suite passed 39/39
 with leak detection disabled due an environment limitation. Native launch failed
 at SDL initialization because no video device was available; visual and interaction
 acceptance remain NOT CHECKED. Delivery is PARTIAL pending that check.
