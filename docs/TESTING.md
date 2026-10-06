@@ -136,7 +136,9 @@ Leak detection was therefore not checked. `git diff --check` and a scan for
 trailing whitespace in new files passed.
 
 Both `./build/dev/traffic_app` and `./build/dev/traffic_app --force-fallback`
-failed at SDL initialization with `No available video device`; `DISPLAY=:0`
-was set but `xdpyinfo -display :0` could not open it. Native visual/interaction
-behavior, actual pacing selection, and forced VSync disable remain NOT CHECKED.
-This review delivery is PARTIAL until those checks can run on a real display.
+failed on the Codex host at SDL initialization with `No available video device`;
+`DISPLAY=:0` was set but `xdpyinfo -display :0` could not open it. These host
+attempts did not establish native visual or interaction behavior. The owner later
+verified native visual and interaction behavior on a usable desktop and reported
+PASS, including the normal and forced-fallback paths. TS-002 was accepted on that
+evidence. LeakSanitizer remains NOT CHECKED as described above.

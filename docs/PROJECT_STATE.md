@@ -7,8 +7,9 @@ Last updated: 2026-10-05 (America/Denver)
 TS-001's exact constant-speed core and timing contract remain available through explicit
 headless selection. The TS-DOC-001 documentation bootstrap was merged into `main` at
 `d4936dec9b3b23503b2fc2434bffbc79127b84b9`. TS-002 implements the owner-approved
-M2 following-and-stopping contract on review branch `codex/ts-002-following-and-stopping`.
-Implementation review and owner acceptance remain pending; M3 is not authorized.
+M2 following-and-stopping contract. The owner accepted TS-002 after native visual and
+interaction verification on a usable desktop. TS-002 is the completed M2 milestone;
+M3 is not authorized.
 
 ## Implemented scope
 
@@ -23,12 +24,12 @@ read-only state/event display. TS-001 remains a separate headless scenario.
 The accepted M2 behavior is in [Following and stopping](systems/FOLLOWING_AND_STOPPING.md).
 [Architecture](ARCHITECTURE.md) preserves TS-001 and the shared boundaries.
 [Testing](TESTING.md) describes the validation gate. The TS-002 completion report records
-actual test, sanitizer, and native verification results; source implementation alone is
-not owner acceptance or proof of visual usability. Both preset suites passed 39/39,
+actual test and sanitizer results separately from owner verification. Both preset suites passed 39/39,
 and the isolated AddressSanitizer/UndefinedBehaviorSanitizer suite passed 39/39
-with leak detection disabled due an environment limitation. Native launch failed
-at SDL initialization because no video device was available; visual and interaction
-acceptance remain NOT CHECKED. Delivery is PARTIAL pending that check.
+with leak detection disabled due an environment limitation; LeakSanitizer was not
+verified. Native visual and interaction verification passed on the owner's usable
+desktop, including the normal and forced-fallback paths. The earlier Codex-host
+attempts could not initialize an SDL video device and did not provide that evidence.
 
 ## Boundaries and open work
 
